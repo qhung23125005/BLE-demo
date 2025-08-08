@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import DeviceModal from "./DeviceConnectionModal";
 import useBLE from "./useBLE";
@@ -23,12 +24,13 @@ const App = () => {
     deviceValue,
   } = useBLE();
 
-  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   const hideModal = () => setIsModalVisible(false);
+
   const openModal = async () => {
-    const isPermissionsEnabled = await requestPermissions();
-    if (isPermissionsEnabled) {
+    const isPermissionsGranted = await requestPermissions();
+    if (isPermissionsGranted) {
       scanForPeripherals();
       setIsModalVisible(true);
     }
@@ -37,22 +39,27 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F7FA" />
-      <Text style={styles.title}> BLE Thermometer</Text>
+      <Text style={styles.title}>BLE Thermometer</Text>
 
       <View style={styles.card}>
         {connectedDevice ? (
           <>
             <Text style={styles.connectedText}>
-               Connected to: {connectedDevice.name}
+              Connected to: {connectedDevice.name}
             </Text>
+
             {deviceValue ? (
               <View style={styles.dataContainer}>
-                <Text style={styles.dataItem}>Temperature: {deviceValue.temperature}</Text>
-                <Text style={styles.dataItem}>Humidity: {deviceValue.humidity}</Text>
-                <Text style={styles.dataItem}>Battery: {deviceValue.batteryVoltage}</Text>
+                <Text style={styles.dataItem}>🌡 Temperature: {deviceValue.temperature}</Text>
+                <Text style={styles.dataItem}>💧 Humidity: {deviceValue.humidity}</Text>
+                <Text style={styles.dataItem}>🔋 Battery: {deviceValue.batteryVoltage}</Text>
               </View>
             ) : (
-              <Text style={styles.waitingText}>Receiving data...</Text>
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#8a9fb8ff" />
+                <Text style={styles.waitingText}>Receiving data...</Text>
+              </View>
+
             )}
           </>
         ) : (
@@ -61,7 +68,10 @@ const App = () => {
       </View>
 
       {connectedDevice && (
-        <TouchableOpacity onPress={disconnectFromDevice} style={[styles.ctaButton, styles.disconnectButton]}>
+        <TouchableOpacity
+          onPress={disconnectFromDevice}
+          style={[styles.ctaButton, styles.disconnectButton]}
+        >
           <Text style={styles.ctaButtonText}>Disconnect</Text>
         </TouchableOpacity>
       )}
@@ -76,7 +86,6 @@ const App = () => {
         closeModal={hideModal}
         visible={isModalVisible}
         connectToPeripheral={connectToDevice}
-        
         devices={allDevices}
       />
     </SafeAreaView>
@@ -95,7 +104,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "bold",
     marginBottom: 30,
-    color: "#333",
+    color: "#1f4571",
   },
   card: {
     backgroundColor: "#fff",
@@ -112,18 +121,18 @@ const styles = StyleSheet.create({
   },
   connectedText: {
     fontSize: 18,
-    color: "#2E7D32",
+    color: "#1f4571",
     fontWeight: "600",
     marginBottom: 10,
   },
   disconnectedText: {
     fontSize: 18,
-    color: "#D32F2F",
+    color: "#1f4571",
     textAlign: "center",
     fontWeight: "500",
   },
   waitingText: {
-    fontSize: 16,
+    fontSize: 18,
     color: "#999",
     fontStyle: "italic",
     marginTop: 10,
@@ -139,10 +148,10 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   ctaButton: {
-    backgroundColor: "#1976D2",
+    backgroundColor: "#5677a0",
     width: "100%",
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 20,
     alignItems: "center",
     marginTop: 10,
   },
@@ -152,11 +161,15 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   disconnectButton: {
-    backgroundColor: "#D32F2F",
+    backgroundColor: "#99bed9",
   },
-  reloadButton: {
-    backgroundColor: "#FF9800",
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 10, // or paddingRight if gap doesn't work on your RN version
   },
+
 });
 
 export default App;

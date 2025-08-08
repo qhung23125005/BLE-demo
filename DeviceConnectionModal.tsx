@@ -1,79 +1,123 @@
-import React, { FC, useCallback } from "react";
+import React, { FC, useCallback, useState } from "react";
 import {
   FlatList,
   ListRenderItemInfo,
   Modal,
   SafeAreaView,
-  Text,
   StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
+  ActivityIndicator,
 } from "react-native";
 import { Device } from "react-native-ble-plx";
 
 type DeviceModalListItemProps = {
   item: ListRenderItemInfo<Device>;
-  connectToPeripheral: (device: Device) => void;
+  connectToPeripheral: (device: Device) => Promise<void>;
   closeModal: () => void;
+  connectingDeviceId: string | null;
+  setConnectingDeviceId: (id: string | null) => void;
 };
 
 type DeviceModalProps = {
   devices: Device[];
   visible: boolean;
-  connectToPeripheral: (device: Device) => void;
+  connectToPeripheral: (device: Device) => Promise<void>;
   closeModal: () => void;
 };
 
-const DeviceModalListItem: FC<DeviceModalListItemProps> = (props) => {
-  const { item, connectToPeripheral, closeModal } = props;
+const DeviceModalListItem: FC<DeviceModalListItemProps> = ({
+  item,
+  connectToPeripheral,
+  closeModal,
+  connectingDeviceId,
+  setConnectingDeviceId,
+}) => {
+  const isConnecting = connectingDeviceId === item.item.id;
 
-  const connectAndCloseModal = useCallback(() => {
-    connectToPeripheral(item.item);
-    closeModal();
-  }, [closeModal, connectToPeripheral, item.item]);
+  const connectAndCloseModal = useCallback(async () => {
+    if (isConnecting) return;
+    try {
+      setConnectingDeviceId(item.item.id);
+      await connectToPeripheral(item.item);
+      closeModal();
+    } catch (error) {
+      console.warn("Connection failed", error);
+    } finally {
+      setConnectingDeviceId(null);
+    }
+  }, [item.item, connectToPeripheral, closeModal, isConnecting]);
 
   return (
     <TouchableOpacity
       onPress={connectAndCloseModal}
-      style={modalStyle.ctaButton}
+      disabled={isConnecting}
+      style={[
+        modalStyle.ctaButton,
+        isConnecting && modalStyle.disabledButton,
+      ]}
+      accessibilityRole="button"
     >
-      <Text style={modalStyle.ctaButtonText}>
-        {item.item.name ?? item.item.localName}
-      </Text>
+      {isConnecting ? (
+        <View style={modalStyle.loadingContainer}>
+          <ActivityIndicator size="small" color="#fff" />
+          <Text style={modalStyle.ctaButtonTextConnecting}>Connecting...</Text>
+        </View>
+      ) : (
+        <Text style={modalStyle.ctaButtonText}>
+          {item.item.name ?? item.item.localName ?? "Unnamed Device"}
+        </Text>
+      )}
     </TouchableOpacity>
   );
+
 };
 
-const DeviceModal: FC<DeviceModalProps> = (props) => {
-  const { devices, visible, connectToPeripheral, closeModal } = props;
+const DeviceModal: FC<DeviceModalProps> = ({
+  devices,
+  visible,
+  connectToPeripheral,
+  closeModal,
+}) => {
+  const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
 
   const renderDeviceModalListItem = useCallback(
-    (item: ListRenderItemInfo<Device>) => {
-      return (
-        <DeviceModalListItem
-          item={item}
-          connectToPeripheral={connectToPeripheral}
-          closeModal={closeModal}
-        />
-      );
-    },
-    [closeModal, connectToPeripheral]
+    (item: ListRenderItemInfo<Device>) => (
+      <DeviceModalListItem
+        item={item}
+        connectToPeripheral={connectToPeripheral}
+        closeModal={closeModal}
+        connectingDeviceId={connectingDeviceId}
+        setConnectingDeviceId={setConnectingDeviceId}
+      />
+    ),
+    [connectToPeripheral, closeModal, connectingDeviceId]
   );
 
+  const handleClose = () => {
+    setConnectingDeviceId(null);
+    closeModal();
+  };
+
   return (
-    <Modal
-      style={modalStyle.modalContainer}
-      animationType="slide"
-      transparent={false}
-      visible={visible}
-    >
-      <SafeAreaView style={modalStyle.modalTitle}>
-        <Text style={modalStyle.modalTitleText}>
-          Tap on a device to connect
-        </Text>
+    <Modal animationType="fade" transparent={false} visible={visible}>
+      <SafeAreaView style={modalStyle.modalContainer}>
+        <TouchableOpacity
+          style={modalStyle.closeButton}
+          onPress={handleClose}
+          accessibilityRole="button"
+        >
+          <Text style={modalStyle.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+
+        <Text style={modalStyle.modalTitleText}>Tap on a device to connect</Text>
+
         <FlatList
-          contentContainerStyle={modalStyle.modalFlatlistContiner}
+          contentContainerStyle={modalStyle.deviceListContainer}
           data={devices}
           renderItem={renderDeviceModalListItem}
+          keyExtractor={(item) => item.id}
         />
       </SafeAreaView>
     </Modal>
@@ -84,43 +128,61 @@ const modalStyle = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: "#f2f2f2",
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
-  modalFlatlistContiner: {
-    flex: 1,
-    justifyContent: "center",
+  closeButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: "#ccc",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
-  modalCellOutline: {
-    borderWidth: 1,
-    borderColor: "black",
-    alignItems: "center",
-    marginHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 8,
-  },
-  modalTitle: {
-    flex: 1,
-    backgroundColor: "#f2f2f2",
+  closeButtonText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
   },
   modalTitleText: {
-    marginTop: 40,
-    fontSize: 30,
+    marginTop: 60,
+    fontSize: 24,
     fontWeight: "bold",
-    marginHorizontal: 20,
     textAlign: "center",
+    marginBottom: 20,
+  },
+  deviceListContainer: {
+    paddingBottom: 20,
   },
   ctaButton: {
-    backgroundColor: "#FF6060",
+    backgroundColor: "#a3bcafff",
     justifyContent: "center",
     alignItems: "center",
     height: 50,
-    marginHorizontal: 20,
-    marginBottom: 5,
-    borderRadius: 8,
+    marginBottom: 10,
+    borderRadius: 20,
   },
   ctaButtonText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "white",
+    color: "#fff",
+    paddingHorizontal: 12,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaButtonTextConnecting: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    paddingHorizontal: 12,
   },
 });
 
